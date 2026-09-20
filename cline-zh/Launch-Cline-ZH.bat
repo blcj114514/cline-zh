@@ -68,8 +68,6 @@ set "NODE="
 where node >nul 2>nul && set "NODE=node"
 if not defined NODE if exist "%ProgramFiles%\nodejs\node.exe" set "NODE=%ProgramFiles%\nodejs\node.exe"
 if not defined NODE if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" set "NODE=%LOCALAPPDATA%\Programs\nodejs\node.exe"
-rem managed runtime fallback
-if not defined NODE if exist "%USERPROFILE%\.workbuddy\binaries\node\versions\22.22.2-3\node.exe" set "NODE=%USERPROFILE%\.workbuddy\binaries\node\versions\22.22.2-3\node.exe"
 if defined NODE goto zh_check_node_ver
 
 echo [ERROR] Node.js not found. Please install Node.js 22 or newer.
