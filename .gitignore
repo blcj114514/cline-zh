@@ -1,0 +1,7 @@
+_backup/
+*.log
+zh-status.json
+selftest-status.json
+selftest-report.json
+__pycache__/
+*.pyc

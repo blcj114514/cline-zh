@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>隐私与代码上传审计报告</title>
+<style>
+:root{--bg:#fbfbfd;--fg:#1f2328;--mut:#5b6470;--line:#e3e6eb;--card:#ffffff;
+--acc:#2f6feb;--ok:#1a7f37;--warn:#9a6700;--bad:#b42318;--code:#f4f6f9;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font:15px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:48px 32px 96px}
+h1{font-size:28px;line-height:1.35;margin:0 0 8px;letter-spacing:-.2px}
+h2{font-size:20px;margin:44px 0 14px;padding-bottom:9px;border-bottom:2px solid var(--line)}
+h3{font-size:16.5px;margin:30px 0 10px;color:#0d1117}
+h4{font-size:15px;margin:22px 0 8px;color:var(--mut)}
+p{margin:11px 0}
+hr{border:0;border-top:1px solid var(--line);margin:36px 0}
+code{background:var(--code);padding:2px 6px;border-radius:5px;
+font:13px/1.6 ui-monospace,Consolas,"Cascadia Mono",monospace;color:#0f172a}
+pre{background:#0f1729;color:#e6edf3;padding:16px 18px;border-radius:10px;
+overflow-x:auto;margin:14px 0;border:1px solid #1f2937}
+pre code{background:none;color:inherit;padding:0;font-size:12.6px;line-height:1.7}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;background:var(--card);
+border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th{background:#f2f4f8;text-align:left;font-weight:600;color:#111827}
+th,td{padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#fafbfe}
+blockquote{margin:16px 0;padding:12px 18px;background:#fff8e6;
+border-left:4px solid #e0a800;border-radius:0 8px 8px 0;color:#5c4708}
+ul,ol{margin:12px 0;padding-left:24px}
+li{margin:6px 0}
+strong{color:#0d1117}
+h2:first-of-type{margin-top:30px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Cline Desktop 反编译 · 隐私与代码上传审计报告</h1>
+<table><thead><tr><th>项目</th><th>内容</th></tr></thead><tbody><tr><td>审计对象</td><td>Cline Desktop v0.0.32（Windows x64）</td></tr><tr><td>安装路径</td><td><code>E:\Cline\</code></td></tr><tr><td>核心文件</td><td><code>cline-app.exe</code> 16.9 MB（Tauri 外壳）、<code>code-sidecar.exe</code> 143.9 MB（Bun 单文件后端）</td></tr><tr><td>审计方式</td><td>静态反编译 + 字节码级源码还原 + 本机运行实测三方交叉验证</td></tr><tr><td>报告日期</td><td>2026-09-19</td></tr><tr><td>审计范围</td><td>全部出站网络通道、遥测载荷内容、本地落盘数据、第三方 SDK 行为</td></tr></tbody></table>
+<hr>
+<h2>一、结论速览</h2>
+<table><thead><tr><th>#</th><th>关键问题</th><th>结论</th><th>证据强度</th></tr></thead><tbody><tr><td>1</td><td>是否上传你的<strong>代码文件内容</strong>？</td><td><strong>未发现</strong>。反编译后逐条核对所有遥测载荷构造点，没有任何一处把文件内容塞进上报字段</td><td>★★★★★ 源码级</td></tr><tr><td>2</td><td>是否上传你的<strong>提示词 / 对话原文</strong>？</td><td><strong>未发现</strong>（默认）。默认关闭内容录制；仅在用户手动设置环境变量后才可能开启</td><td>★★★★★ 源码级</td></tr><tr><td>3</td><td>是否上传你的<strong>项目路径</strong>？</td><td><strong>未发现</strong>。<code>workspaceRoot</code> 在全部遥测调用点 600 字符邻域内命中 <strong>0 次</strong>；实测日志中路径只出现在本地文件里</td><td>★★★★☆ 源码+实测</td></tr><tr><td>4</td><td>是否存在<strong>默认开启的后台上报</strong>？</td><td><strong>是</strong>。遥测默认开启（opt-out 模式），持续上报元数据事件与稳定设备标识</td><td>★★★★★ 源码+实测</td></tr><tr><td>5</td><td>上报了哪些可识别信息？</td><td>主机名、操作系统版本、CPU 架构、匿名设备 ID（未登录时也已上报）、登录后的邮箱/组织 ID</td><td>★★★★★ 实测</td></tr><tr><td>6</td><td>是否算"私自泄露隐私"？</td><td><strong>不属于</strong>。属"默认收集 + 提供开关 + 可关闭"的常规商业遥测；但默认开启、未登录也上报设备指纹这两点值得处理</td><td>★★★★☆</td></tr><tr><td>7</td><td>有没有高风险但默认关闭的"开关"？</td><td><strong>有 3 个</strong>，见第六章。任何人只要设置对应环境变量，即可让提示词/代码外流</td><td>★★★★★ 源码级</td></tr></tbody></table>
+<p><strong>一句话总结</strong>：Cline 会默认把你的<strong>元数据</strong>（操作类型、模型名、耗时、token 数、报错文本、设备指纹）发给官方，但<strong>不会</strong>默认把代码、提示词、文件路径发出去。风险不在"偷偷上传"，而在"默认开启 + 存在可被误开的全量内容录制开关"。</p>
+<hr>
+<h2>二、审计方法（可复现）</h2>
+<ol><li><strong>识别运行架构</strong>：探测 <code>cline-app.exe</code> 内嵌资源表，确认前端资源以 <strong>brotli 压缩</strong>内嵌在 9.4 MB–13.3 MB 区间，格式为 <code>[路径] + 0x1B 标记 + 3 字节小端长度 + brotli 流</code>。</li><li><strong>还原前端</strong>：用 <code>brotli.Decompressor</code> 流式解压，成功还原 <strong>390 / 398</strong> 个 Next.js chunk（约 19 MB）。</li><li><strong>还原后端</strong>：Bun 编译产物中保留了<strong>完整可读、带缩进的 JavaScript 源码</strong>，提取出 <strong>26 MB</strong> 的 <code>run_117650493.js</code>——这是本次审计能给出"源码级"结论的关键。</li><li><strong>静态审计</strong>：对 26 MB 源码做定向检索（网络端点、遥测构造点、敏感字段邻近度、SDK 初始化开关）。</li><li><strong>实测交叉验证</strong>：读取本机 <code>%USERPROFILE%\.cline\data\logs\code.log</code> 与 <code>global-settings.json</code>，核对"实际上报了什么"。</li></ol>
+<p>审计脚本与原始证据均保留在 <code>cline-audit/</code> 目录内。</p>
+<hr>
+<h2>三、Cline 的运行架构</h2>
+<pre><code>┌──────────────────────────────────────────────────────────────┐
+│  cline-app.exe  (Tauri 外壳, 16.9 MB)                        │
+│   └─ WebView2 渲染进程                                        │
+│        └─ Next.js 前端（390 个 chunk，brotli 内嵌在 exe 里）  │
+│             ・无 i18n 框架，UI 文案全部硬编码                │
+└───────────────┬──────────────────────────────────────────────┘
+                │ HTTP / WebSocket（本地回环）
+┌───────────────▼──────────────────────────────────────────────┐
+│  code-sidecar.exe  (Bun 单文件, 143.9 MB)                    │
+│   ・内含完整可读 JS 源码（26 MB）                            │
+│   ・本地 Hub 服务（ws://127.0.0.1:25463/hub）                │
+│   ・本地 SQLite：sessions / tasks / connectors / hub-events  │
+└──────────────────────────────────────────────────────────────┘</code></pre>
+<p>要点：</p>
+<ul><li><strong>前端无 i18n 框架</strong>，所有界面文案硬编码在 bundle 里 —— 这正是必须走"运行时注入翻译层"的原因（见汉化包说明）。</li><li><strong>后端源码可读</strong>，因此"它到底发了什么"是可直接读代码确认的，不需要靠抓包推测。</li><li>所有与模型厂商的通信由 sidecar 发起，<strong>使用你自己配置的 API Key</strong>。</li></ul>
+<hr>
+<h2>四、全部出站通道清单</h2>
+<p>从 26 MB 源码中提取到的对外域名，按用途归类（已剔除文档链接、SDK 常量表）：</p>
+<table><thead><tr><th>域名</th><th>用途</th><th>默认状态</th><th>发送内容</th></tr></thead><tbody><tr><td><code>otel.cline.bot</code></td><td>OpenTelemetry OTLP（<strong>日志 + 指标</strong>，http/json）</td><td><strong>默认开启</strong></td><td>遥测事件与指标的纯元数据（详见第五章）</td></tr><tr><td><code>data.cline.bot</code></td><td>PostHog（特性开关 / 灰发）</td><td><strong>默认开启</strong></td><td>匿名 distinct_id、特性开关调用记录</td></tr><tr><td><code>api.cline.bot</code> <code>app.cline.bot</code> <code>cline.bot</code></td><td>Cline 账号、ClinePass 模型网关</td><td>登录/使用时</td><td>账号态、模型请求（走官方网关时）</td></tr><tr><td><code>core-api.staging.int.cline.bot</code></td><td>官方 staging 环境（仅灰度/内部）</td><td>通常不触发</td><td>同上</td></tr><tr><td><code>cloud.langfuse.com</code></td><td>Langfuse LLM 追踪</td><td><strong>默认关闭</strong></td><td>仅在设置 <code>CLINE_TRACE_RECORD_CONTENT</code> 后可能携带输入/输出</td></tr><tr><td><code>github.com</code> <code>raw.githubusercontent.com</code> <code>cline.github.io</code></td><td>插件/技能市场目录拉取</td><td>浏览市场时</td><td>仅拉取目录 JSON</td></tr><tr><td><code>sentry.io</code></td><td>Sentry SDK</td><td><strong>未初始化</strong></td><td>源码中 <code>Sentry.init</code> 命中 <strong>0 次</strong>，SDK 仅作为依赖被静态打包</td></tr><tr><td>各模型厂商域名（<code>api.anthropic.com</code>、<code>api.openai.com</code>、<code>api.deepseek.com</code>、<code>open.bigmodel.cn</code> 等 200+ 个）</td><td>模型推理请求</td><td>用户配置后</td><td>你的提示词与代码上下文——<strong>这是唯一会真正离开机器的代码内容，且目的地是你自己选的厂商</strong></td></tr></tbody></table>
+<blockquote>说明：源码里出现 200+ 个厂商域名，是因为 Cline 内置了 models.dev 的模型目录与各家 SDK 适配层，不等于会连这些站点。</blockquote>
+<hr>
+<h2>五、遥测到底发了什么（实测证据）</h2>
+<h3>5.1 上报通道的判据：遥测适配层只看元数据</h3>
+<p>遥测事件统一经过 <code>OpenTelemetryAdapter.emitLog</code>，其构造逻辑为：</p>
+<pre><code>emitLog(event, properties, required) {
+  if (!this.logger) return;
+  const attributes = this.flattenProperties(this.buildAttributes(properties, required));
+  this.logger.emit({ severityText: &quot;INFO&quot;, body: event, attributes });
+}
+
+buildAttributes(properties, required = false) {
+  return {
+    ...this.commonProperties,      // 仅通用属性
+    ...this.metadata,              // 仅版本/平台
+    ...properties,                 // 各事件自带的元数据
+    ...this.distinctId ? { distinct_id: this.distinctId } : {}
+  };
+}</code></pre>
+<p>而 <code>metadata</code> 的构造是固定六项：</p>
+<pre><code>createClineTelemetryServiceMetadata() {
+  return {
+    extension_version: &quot;unknown&quot;, cline_type: &quot;unknown&quot;, platform: &quot;terminal&quot;,
+    platform_version: process?.version || &quot;unknown&quot;,
+    os_type: process?.platform || &quot;unknown&quot;,
+    os_version: process?.platform === &quot;win32&quot; ? process?.env?.OS ?? &quot;unknown&quot; : &quot;unknown&quot;
+  };
+}</code></pre>
+<h3>5.2 敏感参数被"长度化"处理</h3>
+<p>这是最有力的反证——开发者在事件构造处<strong>刻意只传长度、不传内容</strong>：</p>
+<pre><code>// @mention 引用：只传类型与内容长度，不传内容
+function captureMentionUsed(telemetry2, mentionType, contentLength) {
+  emit(telemetry2, CORE_TELEMETRY_EVENTS.TASK.MENTION_USED,
+       { mentionType, contentLength, timestamp: new Date().toISOString() });
+}
+
+// 搜索：只传 queryLength（查询长度），不是 query 本身
+function captureMentionSearchResults(telemetry2, query, resultCount, searchType, isEmpty) {
+  emit(telemetry2, CORE_TELEMETRY_EVENTS.TASK.MENTION_SEARCH_RESULTS, {
+    queryLength: query.length, ...
+  });
+}
+
+// 报错文本统一截断到 500 字符
+const MAX_ERROR_MESSAGE_LENGTH = 500;
+function truncateErrorMessage(errorMessage) {
+  if (!errorMessage) return;
+  return errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);
+}</code></pre>
+<h3>5.3 实测：本机日志里真实记录的上报内容</h3>
+<p><code>%USERPROFILE%\.cline\data\logs\code.log</code> 中 <code>telemetry.*</code> 记录的完整属性集（原文摘录）：</p>
+<pre><code>{&quot;telemetrySink&quot;:&quot;TelemetryLoggerSink&quot;,&quot;severity&quot;:&quot;warn&quot;,&quot;event&quot;:&quot;telemetry.provider_created&quot;,
+ &quot;properties&quot;:{&quot;extension_version&quot;:&quot;0.0.32&quot;,&quot;cline_type&quot;:&quot;desktop&quot;,&quot;platform&quot;:&quot;Cline Desktop&quot;,
+ &quot;platform_version&quot;:&quot;0.0.32&quot;,&quot;os_type&quot;:&quot;win32&quot;,&quot;os_version&quot;:&quot;Windows 11 Pro&quot;,
+ &quot;provider&quot;:&quot;opentelemetry&quot;,&quot;enabled&quot;:true,&quot;logsExporter&quot;:&quot;otlp&quot;,&quot;metricsExporter&quot;:&quot;otlp&quot;,
+ &quot;tracesExporter&quot;:&quot;&quot;,&quot;otlpProtocol&quot;:&quot;http/json&quot;,&quot;hasOtlpEndpoint&quot;:true,
+ &quot;distinct_id&quot;:&quot;cl-****（本机设备标识，已脱敏）&quot;,&quot;device_id&quot;:&quot;cl-****（本机设备标识，已脱敏）&quot;},
+ &quot;msg&quot;:&quot;telemetry.required_event&quot;}</code></pre>
+<pre><code>{&quot;telemetrySink&quot;:&quot;TelemetryLoggerSink&quot;,&quot;event&quot;:&quot;user.extension_activated&quot;,
+ &quot;properties&quot;:{&quot;extension_version&quot;:&quot;0.0.32&quot;,&quot;cline_type&quot;:&quot;desktop&quot;,&quot;platform&quot;:&quot;Cline Desktop&quot;,
+ &quot;platform_version&quot;:&quot;0.0.32&quot;,&quot;os_type&quot;:&quot;win32&quot;,&quot;os_version&quot;:&quot;Windows 11 Pro&quot;,
+ &quot;distinct_id&quot;:&quot;cl-****（本机设备标识，已脱敏）&quot;,&quot;device_id&quot;:&quot;cl-****（本机设备标识，已脱敏）&quot;},
+ &quot;msg&quot;:&quot;telemetry.event&quot;}</code></pre>
+<p><strong>注意对比</strong>：同一份日志里，含项目路径的那一行长这样——</p>
+<pre><code>{&quot;level&quot;:30,&quot;pid&quot;:2984,&quot;hostname&quot;:&quot;DESKTOP-****&quot;,&quot;workspaceRoot&quot;:&quot;E:\\Cline&quot;,&quot;msg&quot;:&quot;Desktop sidecar starting&quot;}</code></pre>
+<p>它<strong>没有</strong> <code>telemetrySink</code>、没有 <code>event</code>、没有 <code>properties</code> 字段。也就是说：<strong>带路径的日志是本机普通日志，走的是另一条管道，不进遥测。</strong></p>
+<h3>5.4 关键量化验证</h3>
+<table><thead><tr><th>检查项</th><th>结果</th></tr></thead><tbody><tr><td><code>workspaceRoot</code> 出现在任意 <code>capture(</code> / <code>emit(</code> / <code>recordCounter(</code> 调用 <strong>600 字符邻域</strong>内的次数</td><td><strong>0 次</strong></td></tr><tr><td>遥测脚本中 <code>filePath</code> / <code>file_path</code> / <code>prompt</code> / <code>userMessage</code> / <code>fileContent</code> / <code>contentPreview</code> 作为属性键</td><td><strong>0 次</strong></td></tr><tr><td><code>code.file.path</code> / <code>code.stacktrace</code> 出现位置</td><td>仅在 OpenTelemetry SDK 的<strong>常量定义表</strong>中（<code>exports.ATTR_CODE_FILE_PATH = "code.file.path"</code>），无任何赋值调用点</td></tr><tr><td><code>gen_ai.input.messages</code> / <code>gen_ai.output.messages</code> / <code>langfuse.observation.input</code></td><td>同上——仅常量定义，出现在 SDK 属性名清单里</td></tr><tr><td><code>Sentry.init</code></td><td>0 次</td></tr></tbody></table>
+<blockquote>这一点很关键：<strong>字符串出现 ≠ 数据被发送</strong>。OTel SDK 会把自己支持的全部语义约定属性名定义成常量，因此 bundle 里必然出现 <code>gen_ai.input.messages</code> 这类名字。判定"是否真的发送"必须看<strong>赋值调用点</strong>，而不是关键词命中数。</blockquote>
+<hr>
+<h2>六、代码 / 提示词是否外流：3 个"默认关闭但存在"的开关</h2>
+<p>这是本次审计<strong>唯一需要用户主动注意</strong>的部分。</p>
+<h3>开关 A — <code>CLINE_TRACE_RECORD_CONTENT</code>（Langfuse 内容录制）</h3>
+<pre><code>async function resolveAiSdkTelemetry(providerId, samplingKey) {
+  if (!isClineProviderId(providerId)) return TELEMETRY_DISABLED;   // 仅 cline / cline-pass
+  ...
+  if (await isTelemetryOptedOutGlobally()) return TELEMETRY_DISABLED;
+  const recordContent = isEnvTruthy(process.env.CLINE_TRACE_RECORD_CONTENT);
+  return {
+    isEnabled: true,
+    integrations: integration,
+    recordInputs:  recordContent,   // ← 默认 false
+    recordOutputs: recordContent    // ← 默认 false
+  };
+}</code></pre>
+<ul><li>触发条件：使用 <strong>Cline 官方模型网关</strong>（<code>cline</code> / <code>cline-pass</code>）× 设置环境变量 <code>CLINE_TRACE_RECORD_CONTENT=1</code>。</li><li>一旦开启：<strong>提示词与模型回复会被录制</strong>并送往 Langfuse 追踪后端。</li><li>默认：关闭。</li></ul>
+<h3>开关 B — PostHog <code>enableFullAiCapture</code>（AI 事件全量捕获）</h3>
+<pre><code>function a15(key, opts) {
+  return new PostHog(key, { host: &quot;https://data.cline.bot&quot;, ...opts });
+}
+// 桌面端实际调用（无任何内容类选项）：
+const apiKey = &quot;***&lt;内置项目密钥&gt;&quot;;
+const provider = apiKey &amp;&amp; process.env.IS_TEST !== &quot;true&quot; &amp;&amp; process.env.E2E_TEST !== &quot;true&quot;
+  ? new o18({ client: a15(apiKey), config: {...} })
+  : new NoOpFeatureFlagsProvider;</code></pre>
+<pre><code>this.captureMode = resolveCaptureMode();                       // 默认 &quot;v0&quot;
+this.enableFullAiCapture = normalizedOptions.enableFullAiCapture === true;  // 默认 false
+this._aiCaptureRouteActive = false;                            // 只有出现 $ai_* 事件才置 true</code></pre>
+<ul><li>桌面端实例化时<strong>没有传入任何内容相关选项</strong>，<code>enableFullAiCapture</code> 保持 <code>false</code>。</li><li>Cline 自身<strong>从不调用</strong> <code>captureAi</code>，也<strong>从不调用</strong> <code>captureException</code>（<code>$ai_</code> 前缀仅作为 SDK 常量存在）。</li><li>结论：PostHog 在本产品中只承担<strong>特性开关</strong>职责，不上报 AI 内容。</li></ul>
+<h3>开关 C — PostHog 异常自动捕获 + 源码上下文</h3>
+<p>PostHog SDK 内含 error-tracking 模块，且具备读取本地源码给栈帧补 <code>context_line</code> / <code>pre_context</code> / <code>post_context</code> 的能力：</p>
+<pre><code>async function addSourceContext(frames, openSourceFile, logger) {
+  ... // 读取 frame.filename 对应文件的源码行，塞进 frame.context_line 等字段
+}
+
+this._exceptionAutocaptureEnabled = options.enableExceptionAutocapture || false;  // ← 默认 false</code></pre>
+<ul><li>默认 <code>false</code>，且 Cline 未开启、未调用 <code>captureException</code> —— <strong>处于休眠状态</strong>。</li><li>该 SDK 同时内置了隐私缓解：<code>createRelativePathModifier(basePath = process.cwd())</code> 会把<strong>绝对路径改写为相对路径</strong>再上报。</li><li>残余风险：<strong>若将来官方开启该项</strong>，报错时栈帧附带的源码上下文会外流。</li></ul>
+<h3>其他残余风险（低）</h3>
+<ul><li><code>sdk.error</code> 遥测事件携带 <code>stack</code> 字段。实测样本中的栈只含打包内路径（<code>http://tauri.localhost/...</code>、<code>B:/~BUN/root/...</code>），<strong>未出现用户项目绝对路径</strong>；<code>error_message</code> 另有 500 字符截断。理论上若某第三方库把绝对路径写进栈，存在外泄可能。</li></ul>
+<hr>
+<h2>七、本地落盘数据清单（实测）</h2>
+<p><code>%USERPROFILE%\.cline\</code> 下的全部内容：</p>
+<table><thead><tr><th>路径</th><th>内容</th><th>是否外发</th></tr></thead><tbody><tr><td><code>data/logs/code.log</code></td><td>普通运行日志。<strong>包含项目路径</strong>（如 <code>"workspaceRoot":"E:\\Cline"</code>）</td><td><strong>否</strong>，本地文件</td></tr><tr><td><code>data/logs/hub-daemon.log</code></td><td>Hub 命令总线日志（<code>client.register</code> 等），实测 0 条含路径</td><td><strong>否</strong></td></tr><tr><td><code>data/db/sessions.db</code></td><td>会话索引</td><td>否</td></tr><tr><td><code>data/db/tasks.db</code></td><td>任务/日程</td><td>否</td></tr><tr><td><code>data/db/session-search.db</code></td><td>会话全文检索索引</td><td>否</td></tr><tr><td><code>data/db/connectors.db</code></td><td>消息平台连接配置</td><td>否</td></tr><tr><td><code>data/db/hub-events-<em>.db</code> <code>hub-runs-</em>.db</code></td><td>Hub 事件与运行记录</td><td>否</td></tr><tr><td><code>data/sessions/machine-id</code></td><td>设备标识，实测值 <code>cl-****（本机设备标识，已脱敏）</code></td><td><strong>是</strong>，作为 <code>device_id</code> / <code>distinct_id</code> 上报</td></tr><tr><td><code>data/settings/global-settings.json</code></td><td>全局设置，实测 <code>{"autoUpdateEnabled":true,"telemetryOptOut":false,...}</code></td><td>否</td></tr><tr><td><code>data/cache/feature-flags.cline-code.json</code></td><td>特性开关缓存</td><td>否</td></tr></tbody></table>
+<blockquote>也就是说：<strong>代码内容与会话正文都留在本地 SQLite 里，没有对应的"上传日志"文件或打包上传逻辑</strong>（检索 <code>uploadLog</code> / <code>shipLog</code> / <code>logUpload</code> / <code>logs.jsonl</code> 均 0 命中）。</blockquote>
+<hr>
+<h2>八、如何关闭遥测</h2>
+<h3>方式一：官方开关（推荐，最干净）</h3>
+<p>关闭 Cline 的遥测设置项，程序会写入全局设置文件：</p>
+<pre><code>%USERPROFILE%\.cline\data\settings\global-settings.json</code></pre>
+<p>把 <code>telemetryOptOut</code> 改为 <code>true</code>：</p>
+<pre><code>{
+  &quot;autoUpdateEnabled&quot;: true,
+  &quot;telemetryOptOut&quot;: true,
+  &quot;tools&quot;: { &quot;web_search&quot;: { &quot;enabled&quot;: true } }
+}</code></pre>
+<p>代码层面的关闭是<strong>彻底</strong>的——所有遥测服务创建入口都会先检查这个开关：</p>
+<pre><code>function createConfiguredTelemetryService(options) {
+  if (isTelemetryOptedOutGlobally()) {          // 读 global-settings.json
+    return { telemetry: new OptedOutTelemetryService(options) };   // 直接返回&quot;空实现&quot;
+  }
+  ...
+}
+async function resolveAiSdkTelemetry(providerId) {
+  ...
+  if (await isTelemetryOptedOutGlobally()) return TELEMETRY_DISABLED;
+}</code></pre>
+<p>注意：<code>isTelemetryOptedOutGlobally()</code> 在<strong>文件缺失或 JSON 解析失败</strong>时返回 <code>true</code>（即判定为"已退出"），因此该开关的行为是保守的。</p>
+<p>关闭动作本身会上报一条 <code>user.opt_out</code> 事件（记录"有人退出了遥测"这一事实），此后不再上报。</p>
+<h3>方式二：网络层封堵（想更彻底）</h3>
+<p>在 <code>C:\Windows\System32\drivers\etc\hosts</code> 追加：</p>
+<pre><code>0.0.0.0 otel.cline.bot
+0.0.0.0 data.cline.bot</code></pre>
+<p>或用防火墙禁止 <code>cline-app.exe</code> / <code>code-sidecar.exe</code> 访问上述域名。</p>
+<p>副作用：特性开关与灰度能力失效（不影响核心编码功能）；若你使用 Cline 官方模型网关，<code>api.cline.bot</code> <strong>不要</strong>封。</p>
+<h3>方式三：只关内容类开关（保持功能遥测）</h3>
+<p>确保<strong>不要</strong>设置以下环境变量：<code>CLINE_TRACE_RECORD_CONTENT</code>、<code>POSTHOG_CAPTURE_MODE</code>。</p>
+<hr>
+<h2>九、最坏情况风险分级</h2>
+<table><thead><tr><th>等级</th><th>场景</th><th>前提条件</th></tr></thead><tbody><tr><td>🟢 低</td><td>元数据 + 设备指纹被官方长期留存</td><td>默认行为，无前提</td></tr><tr><td>🟢 低</td><td>报错文本（≤500 字符）可能含片段路径</td><td>若第三方库栈含绝对路径</td></tr><tr><td>🟡 中</td><td>提示词与模型回复被录制外发</td><td><strong>需</strong>使用官方网关 <strong>且</strong> 人为设置 <code>CLINE_TRACE_RECORD_CONTENT=1</code></td></tr><tr><td>🟡 中</td><td>报错时的源码上下文外流</td><td><strong>需</strong>官方在后续版本开启 <code>enableExceptionAutocapture</code></td></tr><tr><td>🔴 高</td><td>整个代码库被上传</td><td><strong>未发现任何相关代码路径</strong>；唯一的代码外流是你主动配置的模型厂商 API</td></tr></tbody></table>
+<hr>
+<h2>十、给用户的 4 条建议</h2>
+<ol><li><strong>改一行配置即可</strong>：把 <code>global-settings.json</code> 的 <code>telemetryOptOut</code> 设为 <code>true</code>。这是最小成本的隐私提升。</li><li><strong>别设那两个环境变量</strong>：<code>CLINE_TRACE_RECORD_CONTENT</code> 和 <code>POSTHOG_CAPTURE_MODE</code>，它们是"内容外流"的唯一闸门。</li><li><strong>厂商选择即数据边界</strong>：真正会离开机器的代码内容只走你配置的模型 API。用官方网关时，请求会经 <code>api.cline.bot</code> 中转；若你的代码敏感，优先直连自建/自控的端点。</li><li><strong><code>~/.cline/data/logs/code.log</code> 会记录项目路径</strong>。要分享日志排障时，先脱敏这一行。</li></ol>
+<hr>
+<h2>附：证据索引</h2>
+<table><thead><tr><th>证据</th><th>位置</th></tr></thead><tbody><tr><td>后端源码（26 MB，可读）</td><td><code>cline-audit/sidecar_js/run_117650493.js</code></td></tr><tr><td>前端资源（390 个已还原）</td><td><code>cline-audit/extract/</code></td></tr><tr><td>遥测事件目录与适配层</td><td><code>cline-audit/telemetry_analysis.txt</code>、<code>telemetry_ctx.txt</code></td></tr><tr><td>出站域名 / 内嵌 Token / 内容开关</td><td><code>cline-audit/privacy_probe.txt</code></td></tr><tr><td>日志导出器与事件载荷</td><td><code>cline-audit/privacy_probe2.txt</code></td></tr><tr><td>PostHog 与 OTLP 日志桥</td><td><code>cline-audit/privacy_probe3.txt</code></td></tr><tr><td>PostHog 初始化与本地日志</td><td><code>cline-audit/privacy_probe4.txt</code></td></tr><tr><td>本机实测数据目录 / 日志</td><td><code>cline-audit/_cline_dir.txt</code>、<code>_cline_logs.txt</code></td></tr><tr><td>探针脚本（可复现）</td><td><code>cline-audit/privacy_probe*.py</code>、<code>coverage.py</code></td></tr></tbody></table>
+</div>
+</body>
+</html>

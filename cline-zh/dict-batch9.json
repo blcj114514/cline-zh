@@ -1,0 +1,12 @@
+{
+  "General": "常规",
+  "Voice": "语音",
+  "BuiltIn Tools": "内置工具",
+  "Settings sections": "设置分组",
+  "Account settings": "账号设置",
+  "Ask the user a single clarifying question with 2-5 selectable options.": "向用户提出一个需要澄清的问题，并给出 2-5 个可选项。",
+  "Fetch URL content and analyze it with a prompt describing what to extract.": "抓取 URL 内容，并按你给出的提取要求进行分析。",
+  "Create and manage explicitly requested one-time and recurring agent schedules.": "创建并管理显式请求的一次性与周期性智能体定时任务。",
+  "No plugin tools found.": "未发现插件工具。",
+  "Toggle all": "全部开关"
+}
