@@ -38,6 +38,6 @@ echo.
 echo === remotes now ===
 git remote -v
 echo.
-echo Done. Next: upload cline-zh-oss-dist\cline-zh-v1.1.4.zip as a Release asset (see PUBLISH.md).
+echo Done. Next: upload cline-zh-oss-dist\cline-zh-v1.1.5.zip as a Release asset (see PUBLISH.md).
 pause
 endlocal

@@ -25,9 +25,9 @@ git push -u gitee  main
 
 ## 三、发布 Release（可选但建议）
 
-把 `cline-zh-oss-dist\cline-zh-v1.1.4.zip` 作为附件上传：
-- 标题：`v1.1.4 —— 汉化包 + 免费模型桥`
-- 正文：直接复制 `CHANGELOG.md` 的 v1.1.4 段
+把 `cline-zh-oss-dist\cline-zh-v1.1.5.zip` 作为附件上传：
+- 标题：`v1.1.5 —— 汉化包 + 免费模型桥`
+- 正文：直接复制 `CHANGELOG.md` 的 v1.1.5 段
 
 ## 四、发布前最后自检（30 秒）
 
