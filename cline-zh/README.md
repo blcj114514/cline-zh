@@ -1,4 +1,4 @@
-# Cline 中文汉化包（非侵入式） v1.1.4
+# Cline 中文汉化包（非侵入式） v1.1.5
 
 把 Cline 桌面版界面上的英文换成中文。**不修改 exe、不被更新覆盖、可一键还原。**
 
@@ -70,7 +70,7 @@ Launch-Cline-ZH.bat
 
 > **关于语言**：启动器窗口里的**提示是英文**（cmd 解析 .bat 用的是系统 OEM 编码，批处理里写中文会把命令解析搞坏——这是 v1.1 实测踩到的坑），中文说明都在本文件里；**注入器打印的日志是中文**。
 
-**如果 Cline 不在 `E:\Cline\`**：用记事本打开 `Launch-Cline-ZH.bat`，改 `set "CLINE_EXE=..."` 那一行。
+**Cline 装在别处？** 启动器会按顺序自动找：① 环境变量 `CLINE_ZH_CLINE_EXE` → ② 与本启动器同目录的 `cline-zh.path`（文件里只写一行完整 exe 路径）→ ③ `E:\Cline`、`D:\Cline`、`%LOCALAPPDATA%\Programs\Cline`、`%ProgramFiles%\Cline`。全都没找到时会打印这三种设法。
 
 ---
 
@@ -161,6 +161,8 @@ Launch-Cline-ZH.bat
 - 长度超过 400 字符的文本节点会跳过（避免误伤长正文）。
 - 侧边栏会话标题、文件名等由内容派生的短文本，如果整串恰好等于某个词条，也会被翻译（纯显示层影响）。
 - 若 WebView2 由系统策略禁止开启远程调试端口，本方案无法工作。
+- **调试端口的安全边界**：端口只监听 `127.0.0.1`；启动器**故意不加** `--remote-allow-origins`，因此**带 Origin 的连接（例如你浏览器里打开的某个网页）会被 Chromium 拒绝**，只有原生客户端（注入器）能连。使用期间别让它暴露在不可信网络环境，用完关掉 Cline 即可关闭端口。
+- **派活工具默认不自动批准工具**（`cline-task.mjs` 的 `autoApproveTools: false`）：遇到写入/执行类操作会挂起等你到界面点批准；只有完全信任任务时才加 `--auto-approve`。
 
 ---
 
@@ -226,7 +228,7 @@ Launch-Cline-ZH.bat
 13. Node < 22 直接报错并写 `stage: "env"`（原来会每 2 秒刷 `WebSocket is not defined`）。
 14. `selftest.js` 修正帧累积器（原来解析出完整帧后会丢弃缓冲区里的半包，可能导致偶发假失败）。
 
-### v1.1.4（2026-09-20）—— 系统性补齐设置页等
+### v1.1.5（2026-09-20）—— 系统性补齐设置页等
 
 18. **发现并修复"语料抽取漏块"**：早期抽取流程漏掉了设置页/引导页/SSH 对话框等整块 chunk，导致"覆盖率 89.2%"虚高（分母里根本没有这些页面）。改用语料位置抽取（JSX 的 `children/placeholder/title/aria-label` 等）后重扫，得 **407 条新缺口**并全部补齐（含 `Connect a model to start building`、`Desktop notifications`、`Accent color`、`Add SSH Host` 全套表单、通知事件表等）。
 19. 新增 **4 条相对时间规则**（`1m/2h/3d/5s` → `N 分钟前 / N 小时前 / N 天前 / N 秒前`）。

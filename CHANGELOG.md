@@ -1,5 +1,17 @@
 # 变更记录
 
+## v1.1.5 — 2026-09-20（安全加固，建议升级）
+
+- **启动器不再带 `--remote-allow-origins=*`**。注入器是原生客户端（不发 `Origin` 头），Connecting 不受影响；
+  而**带 Origin 的连接（例如你浏览器里打开的网页）会被 Chromium 拒绝**——去掉了"网页可通过本机调试端口接管 Cline"的风险面。
+  （删掉该参数后注入链路已用"真实 Chromium 调试端口 + 原版 injector"复测通过。）
+- **`cline-task.mjs` 的 `autoApproveTools` 默认改为 `false`**：派活时遇到写入/执行类操作会**挂起等你批准**
+  （到 Cline 界面点一下即可）；只有显式加 `--auto-approve` 才自动放行。避免对不可信任务描述自动放开工具。
+- **路径不再写死**：启动器按 `CLINE_ZH_CLINE_EXE` 环境变量 → 同目录 `cline-zh.path` 文件 → 常见安装目录
+  （`E:\Cline`、`D:\Cline`、`%LOCALAPPDATA%\Programs\Cline`、`%ProgramFiles%\Cline`）顺序自动定位 `cline-app.exe`，
+  全都没找到时打印三种设法；`tools/*.py` 同样支持 `CLINE_APP_EXE` 环境变量并自动探测常见目录。
+- 三种设法与"未加 allow-origins 仍可注入"均已实测；`docs`/词库内容不变（**1327 条 / 50 条规则**）。
+
 ## v1.1.4 — 2026-09-20
 - **市场页全量汉化**：12 个分类标签 + 203 条条目的 tagline/描述性名称。
   其中 110 条 tagline 是统一模板（`Connect Cline to X` / `Interact with X`），用**规则**覆盖；

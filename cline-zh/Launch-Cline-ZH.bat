@@ -20,15 +20,31 @@ rem  Keep this window open while using Cline.
 rem ============================================================
 
 set "ZH_HOME=%~dp0"
-set "CLINE_EXE=E:\Cline\cline-app.exe"
 set "PORT=9222"
-set "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=%PORT% --remote-allow-origins=*"
+rem NOTE: no --remote-allow-origins here, on purpose. The injector is a native
+rem client: it sends no Origin header, so it connects fine, while anything that
+rem DOES send one (e.g. a web page open in a browser on this machine) is rejected
+rem by Chromium. Add the flag back only if you switch to a browser-context injector.
+set "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=%PORT%"
+
+rem ---- Locate Cline: env override -> cline-zh.path -> common install dirs ----
+set "CLINE_EXE="
+if defined CLINE_ZH_CLINE_EXE if exist "%CLINE_ZH_CLINE_EXE%" set "CLINE_EXE=%CLINE_ZH_CLINE_EXE%"
+if not defined CLINE_EXE if exist "%ZH_HOME%cline-zh.path" for /f "usebackq delims=" %%P in ("%ZH_HOME%cline-zh.path") do if not defined CLINE_EXE if exist "%%~P" set "CLINE_EXE=%%~P"
+if not defined CLINE_EXE if exist "E:\Cline\cline-app.exe" set "CLINE_EXE=E:\Cline\cline-app.exe"
+if not defined CLINE_EXE if exist "D:\Cline\cline-app.exe" set "CLINE_EXE=D:\Cline\cline-app.exe"
+if not defined CLINE_EXE if exist "%LOCALAPPDATA%\Programs\Cline\cline-app.exe" set "CLINE_EXE=%LOCALAPPDATA%\Programs\Cline\cline-app.exe"
+if not defined CLINE_EXE if exist "%ProgramFiles%\Cline\cline-app.exe" set "CLINE_EXE=%ProgramFiles%\Cline\cline-app.exe"
 rem Pass the SAME port to the injector, otherwise changing PORT above breaks the injection.
 set "CLINE_ZH_PORT=%PORT%"
 
-if exist "%CLINE_EXE%" goto zh_check_running
-echo [ERROR] Cline executable not found: %CLINE_EXE%
-echo         Open this file in Notepad and edit the CLINE_EXE line.
+if defined CLINE_EXE goto zh_check_running
+echo [ERROR] Cline executable not found. Fix it in any of these three ways:
+echo         1. set environment variable CLINE_ZH_CLINE_EXE to the full path of cline-app.exe
+echo         2. create a text file named cline-zh.path next to this .bat, containing
+echo            the full path of cline-app.exe as its only line
+echo         3. edit the CLINE_EXE detection lines near the top of this file
+echo.
 pause
 exit /b 1
 

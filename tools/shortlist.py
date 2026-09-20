@@ -3,7 +3,22 @@
 import os, sys
 BASE = os.environ.get("CLINE_AUDIT_DIR") or os.path.dirname(os.path.abspath(__file__))
 ZH = os.environ.get("CLINE_ZH_DIR") or os.path.join(os.path.dirname(BASE), "cline-zh")
-APP = os.environ.get("CLINE_APP_EXE") or r"E:\Cline\cline-app.exe"
+def _find_cline_app():
+    """按 环境变量 -> 常见安装目录 顺序定位 cline-app.exe；都没找到则返回带提示的猜测值。"""
+    env = os.environ.get("CLINE_APP_EXE")
+    if env and os.path.exists(env):
+        return env
+    cands = [
+        r"E:\Cline\cline-app.exe",
+        r"D:\Cline\cline-app.exe",
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Cline", "cline-app.exe"),
+        os.path.join(os.environ.get("ProgramFiles", ""), "Cline", "cline-app.exe"),
+    ]
+    for c in cands:
+        if c and os.path.exists(c):
+            return c
+    return env or cands[0]
+APP = _find_cline_app()
 import json, re, collections
 
 SRC = os.path.join(BASE, "ui_strings.json")

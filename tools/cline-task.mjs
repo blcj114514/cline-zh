@@ -13,6 +13,8 @@
  *   node cline-task.mjs --list                     # 列出免费模型与登录态
  * 选项： --model <id>（默认 cline-free/deepseek-v4.1-flash） --effort <max|high|…>（默认 max）
  *        --timeout <秒>（默认 600） --json
+ *        --auto-approve   自动批准工具（**默认关闭**）：关闭时遇到需要审批的操作会挂起，
+ *                         请到 Cline 界面点→批准；只有你完全信任该任务时才显式打开。
  */
 import { ClineBridge } from './cline-bridge.mjs';
 import { readFileSync, existsSync } from 'node:fs';
@@ -27,7 +29,7 @@ const ALLOWED = new Set([
 ]);
 
 function parseArgs(argv) {
-  const o = { mode: 'plan', model: 'cline-free/deepseek-v4.1-flash', effort: 'max', timeout: 600, prompt: '', json: false, list: false, cwd: process.cwd() };
+  const o = { mode: 'plan', model: 'cline-free/deepseek-v4.1-flash', effort: 'max', timeout: 600, prompt: '', json: false, list: false, autoApprove: false, cwd: process.cwd() };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -37,6 +39,7 @@ function parseArgs(argv) {
     else if (a === '--timeout') o.timeout = Number(argv[++i]);
     else if (a === '--cwd') o.cwd = argv[++i];
     else if (a === '-f' || a === '--file') o.prompt = readFileSync(argv[++i], 'utf8');
+    else if (a === '--auto-approve') o.autoApprove = true;
     else if (a === '--json') o.json = true;
     else if (a === '--list') o.list = true;
     else rest.push(a);
@@ -79,7 +82,8 @@ if (!ALLOWED.has(opt.model)) {
 const events = [];
 br.onEvent((e) => { events.push(e); if (!opt.json && /message|run\.|session\./.test(e.name)) console.log(`  · ${e.name}`); });
 
-console.log(`→ 启动会话：model=${opt.model} effort=${opt.effort} mode=${opt.mode} cwd=${opt.cwd}`);
+console.log(`→ 启动会话：model=${opt.model} effort=${opt.effort} mode=${opt.mode} cwd=${opt.cwd} autoApprove=${opt.autoApprove}`);
+if (!opt.autoApprove) console.log('  （未自动批准工具：遇到写入/命令类操作会挂起，请到 Cline 界面点批准；或加 --auto-approve 明确放行）');
 const started = await br.call('chat_session_command', {
   request: {
     action: 'start',
@@ -89,7 +93,7 @@ const started = await br.call('chat_session_command', {
       mode: opt.mode,
       reasoningEffort: opt.effort,
       workspaceRoot: opt.cwd,
-      autoApproveTools: true,
+      autoApproveTools: opt.autoApprove,   // false = 需要你在 Cline 界面点批准；--auto-approve 才放行
     },
   },
 }, 120000);
@@ -115,6 +119,7 @@ while ((Date.now() - t0) / 1000 < opt.timeout) {
   if (!opt.json && text) process.stdout.write(`\r  已收到 ${text.length} 字符…`);
 }
 console.log('\n\n===== 回复 =====');
+if (!reply) console.log('（可能是卡在等待工具审批或任务还没跑完——去 Cline 界面看一眼，或缺 --auto-approve）');
 console.log(reply.slice(0, 4000) || '(超时未取到回复，可稍后用 read_session_messages 再取)');
 if (opt.json) console.log('\n事件:', JSON.stringify(events.slice(-12), null, 1).slice(0, 2000));
 br.close();
