@@ -29,7 +29,6 @@
   "This page could not be found.": "找不到此页面。",
   "Symbol is not a constructor": "Symbol 不是构造函数",
   "Missing session id from server": "服务器缺少会话 ID",
-  "should resolve to an object. But found": "应解析为一个对象，但实际发现",
   "Attempt to write outside buffer bounds": "尝试写入缓冲区边界之外",
   "Speech input failed in the webview": "界面中的语音输入失败",
   "Waited for teammates": "已等待队友",
@@ -112,11 +111,9 @@
   "IBM: Granite 4.2 8B": "IBM：Granite 4.2 8B",
   "MiniMax: MiniMax M1": "MiniMax：MiniMax M1",
   "SpaceXAI: Grok 4.20": "SpaceXAI：Grok 4.20",
-  "No providers match \"": "没有匹配的提供商 \"",
   "in e&&e.href&&": "in e&&e.href&&",
   "and sometimes with": "有时配合",
   "how did this happen?": "这是怎么发生的？",
-  "was accessed inside": "在以下位置被访问",
   "Not all": "并非全部",
   "not all": "并非全部"
 }

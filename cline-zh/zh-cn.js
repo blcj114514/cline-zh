@@ -11,6 +11,12 @@
  *   window.__CLINE_ZH_DICT__   { "英文": "中文" }
  *   window.__CLINE_ZH_RULES__  [["正则", "替换"], ...]
  *
+ * v1.1.6 变更（2026-09-23）：
+ *  - 新增「相邻文本节点合并匹配」慢路径：React 会把一句话拆成多个相邻文本节点
+ *    （如 "0" + " MCP server" + "s"），逐节点匹配永远命不中。
+ *    单节点匹配失败时，向后收集紧邻的兄弟文本节点拼接整组再查词库/规则；
+ *    命中写回组内首节点、其余置空，未命中一个字符都不动。
+ *
  * v1.1.1 变更（2026-09-19）：
  *  - 词库/规则改为从 window 实时读取，修复「注入器重新注入后新词条不生效」
  *
@@ -23,7 +29,7 @@
 (function () {
   if (window.__clineZhInstalled) return;
   window.__clineZhInstalled = true;
-  window.__clineZhVersion = "1.1.1";
+  window.__clineZhVersion = "1.1.6";
 
   // 词库与规则都从 window 上「实时」读取：
   // 注入器重注入时只会就地合并/替换这两个全局量，引擎必须能感知到更新。
@@ -124,6 +130,39 @@
     if (out != null && out !== cur) {
       node.nodeValue = out;
       node.__clineZh = out;
+      return;
+    }
+    mergeMatch(node);                        // 单节点未命中才走合并慢路径（快路径不变）
+  }
+
+  // 合并上限：相邻文本节点组最多 8 个节点 / 300 字符。
+  // 超限直接放弃合并，防止把大段正文拼起来误伤，也避免长链兄弟节点拖慢扫描。
+  var MERGE_MAX_NODES = 8, MERGE_MAX_CHARS = 300;
+
+  // 慢路径：React 会把一句话拆成多个相邻文本节点（如 "0" + " MCP server" + "s"），
+  // 逐节点匹配永远命不中。这里从失败节点起向后收集紧邻的兄弟文本节点
+  // （中间遇到元素节点立即停止），原样拼接（保留各节点自身空格）后整体走 translateWhole()。
+  // 命中：结果写入组内第一个节点（当前节点必非空，否则走不到这里），其余置 ''；
+  // 未命中：一个字符都不动。同组节点共享 parentElement，跳过区检查在 TreeWalker 阶段已做。
+  function mergeMatch(node) {
+    var group = [node], len = node.nodeValue.length, s = node.nextSibling;
+    while (s && s.nodeType === 3) {
+      var sv = s.nodeValue || '';
+      if (group.length >= MERGE_MAX_NODES || len + sv.length > MERGE_MAX_CHARS) return;
+      group.push(s);
+      len += sv.length;
+      s = s.nextSibling;
+    }
+    if (group.length < 2) return;
+    var merged = '';
+    for (var i = 0; i < group.length; i++) merged += group[i].nodeValue;
+    var out = translateWhole(merged);
+    if (out == null || out === merged) return;
+    group[0].nodeValue = out;
+    group[0].__clineZh = out;
+    for (var j = 1; j < group.length; j++) {
+      group[j].nodeValue = '';
+      group[j].__clineZh = '';
     }
   }
 

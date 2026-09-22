@@ -3,7 +3,7 @@
 
 用法：
     python merge_dict.py [目标目录]
-    目标目录默认 C:\\Users\\Admin\\本地工具链\\本地工具链Coding\\cline-zh
+    目标目录默认 = 本脚本所在目录
 
 v1.1 变更：黑名单比对改为大小写不敏感（此前 "This route" 因大小写差异漏网）。
 """

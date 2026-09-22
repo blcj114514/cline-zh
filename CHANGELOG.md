@@ -1,5 +1,28 @@
 # 变更记录
 
+## v1.1.6 — 2026-09-23
+
+- **引擎新增「相邻文本节点合并匹配」慢路径**：React 会把一句话拆成多个相邻文本节点
+  （如 `"0" + " MCP server" + "s"`），逐节点匹配永远命不中。单节点匹配失败时，向后收集紧邻的
+  兄弟文本节点拼接整组再查词库/规则；命中写回组内首节点、其余置空，未命中一个字符都不动
+  （上限 8 节点 / 300 字符，遇元素节点即停）。引擎自报版本 1.1.1 → **1.1.6**。
+- 新增 `cline-zh/tests-merge.cjs`：node:vm + 最小 DOM stub 真实执行引擎，10 条断言全绿
+  （`node tests-merge.cjs`）。
+- **修复 3 条永不生效的规则**：`Sort sessions:` / `Environment:` / `Provider:` 三条规则的
+  模式误写成全角冒号，输入串总是先被通用冒号规则命中 → 改为半角冒号并移到通用冒号规则之前；
+  `dict.json` 中 3 条全角键死条目（`Sort sessions：Time` / `Environment：Local` /
+  `Notifications（F8）`）同步改写为半角键，恢复可达。
+- **错译修正**：`Plan` 套餐 → **规划**（Plan/Act/Steer 模式语境）；`Taskbar` 任务栏中的图标
+  → **任务栏**；补整句词条 `Pick the icon Cline shows in the Taskbar` 供合并匹配命中。
+- **分段词条退役**：随合并匹配落地，删除 12 条为绕过节点拆分而建的片段词条
+  （`This will delete` / `This removes` / `Ready to use with` / `Open folder “` /
+  `No providers match "` / `on models that support it — no extra setup needed.` 及
+  React/Vite 内部串碎片等），并为 `Ready to use with X`、`No providers match "X"`、
+  `Open folder "X"`、`… on models that support it — no extra setup needed.` 补整句规则。
+- 词库 1327 → **1315 条**，规则 50 → **54 条**。
+- 工具：`merge_dict.py` docstring 删除残留本机路径；`tools/privacy-scan.py` 个人目录规则
+  放宽（覆盖 `\\Users\\` 转义形态），并新增任意盘符路径告警规则。
+
 ## v1.1.5 — 2026-09-20（安全加固，建议升级）
 
 - **启动器不再带 `--remote-allow-origins=*`**。注入器是原生客户端（不发 `Origin` 头），Connecting 不受影响；

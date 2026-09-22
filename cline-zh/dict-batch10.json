@@ -1,9 +1,7 @@
 {
  "Check permission": "检查权限",
- "Pick the icon Cline shows in the": "选择 Cline 显示在",
- "Taskbar": "任务栏中的图标",
- "Ready to use with": "搭配 ",
- "on models that support it — no extra setup needed.": " 时可直接使用，无需额外配置。",
+ "Pick the icon Cline shows in the Taskbar": "选择 Cline 显示在任务栏中的图标",
+ "Taskbar": "任务栏",
  "Replay": "重放",
  "Task completed notifications": "任务完成通知",
  "Task completed sound": "任务完成提示音",
