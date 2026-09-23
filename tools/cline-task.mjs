@@ -105,16 +105,15 @@ console.log('→ 发送任务…');
 await br.call('chat_session_command', { request: { action: 'send', sessionId, prompt: opt.prompt } }, 120000);
 
 const t0 = Date.now();
-let lastCount = 0, done = false, reply = '';
+let reply = '';
 while ((Date.now() - t0) / 1000 < opt.timeout) {
   await new Promise((r) => setTimeout(r, 3000));
   let msgs = [];
   try { const r = await br.call('read_session_messages', { sessionId, maxMessages: 200 }, 30000); msgs = r?.messages || r || []; } catch { continue; }
   const assistant = (Array.isArray(msgs) ? msgs : []).filter((m) => (m.role || m.type) && String(m.role || m.type).includes('assistant'));
-  if (assistant.length !== lastCount) lastCount = assistant.length;
   const last = assistant[assistant.length - 1];
   const text = last ? (typeof last.content === 'string' ? last.content : JSON.stringify(last.content)) : '';
-  if (text && text === reply) { done = true; break; }
+  if (text && text === reply) break;
   if (text) reply = text;
   if (!opt.json && text) process.stdout.write(`\r  已收到 ${text.length} 字符…`);
 }

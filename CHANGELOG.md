@@ -43,7 +43,7 @@
 - **内置工具页**：补 10 个工具的描述（含 UI 版与 sidecar 版两种原文）+ `teams` 长描述的规则化处理。
 - **语音页**：补 `Connect a provider with transcription models — for example <提供商> — …` **模板规则**（原串含动态提供商列表）。
 - 补齐 `+N more`、`N configured · M available` 等计数型规则。
-- 词库 1164 → **1324 条**，规则 34 → **50 条**。
+- 词库 1164 → **1327 条**，规则 34 → **50 条**。
 
 ## v1.1.3 — 2026-09-20
 - **修正 3 处错译**：`Extra`（思维档位，源码 = xhigh）附加 → **最高**；`Active`（账号页徽标）已启用 → **使用中**；补 `Inactive` → **未激活**。
