@@ -20,7 +20,7 @@ BLACKLIST = {"not all", "in e&&e.href&&", "and sometimes with", "this route",
 
 merged = {}
 for name in ("dict.json", "dict-batch1.json", "dict-batch2.json", "dict-batch3.json",
-             "dict-batch4.json", "dict-batch5.json", "dict-batch6.json", "dict-batch7.json", "dict-batch8.json", "dict-batch9.json", "dict-batch10.json", "dict-batch11.json", "dict-batch12.json"):
+             "dict-batch4.json", "dict-batch5.json", "dict-batch6.json", "dict-batch7.json", "dict-batch8.json", "dict-batch9.json", "dict-batch10.json", "dict-batch11.json", "dict-batch12.json", "dict-batch13.json"):
     p = os.path.join(DIR, name)
     if not os.path.exists(p):
         continue
