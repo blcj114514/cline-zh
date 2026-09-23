@@ -11,6 +11,15 @@
  *   window.__CLINE_ZH_DICT__   { "英文": "中文" }
  *   window.__CLINE_ZH_RULES__  [["正则", "替换"], ...]
  *
+ * v1.2.0 变更（2026-09-23）：
+ *  - observer/兜底 timer/事件监听器支持「叠加注入升级」（对齐 devin-zh B17）：
+ *    处理入口改经 window.__clineZhRun / __clineZhScan 全局派发，每次注入重写；
+ *    常驻设施以当次 __clineZhScan 函数对象做版本戳，戳不符就地重建，净数量仍各 1。
+ *  - 移除 __clineZhInstalled 早退：重注入的新代码即刻接管（此前整段 IIFE 直接 return）。
+ *  - stats 挂在 window.__clineZhStats 上跨注入累计，不再每次清零。
+ *  - 已知边界：≤1.1.6 旧版的 observer/timer/监听器未存 window，首次升级时无法摘除
+ *    （僵尸回调仍走旧闭包，但词库/规则实时读取不受影响）；≥1.2.0 之后恒为净 1。
+ *
  * v1.1.6 变更（2026-09-23）：
  *  - 新增「相邻文本节点合并匹配」慢路径：React 会把一句话拆成多个相邻文本节点
  *    （如 "0" + " MCP server" + "s"），逐节点匹配永远命不中。
@@ -27,9 +36,9 @@
  *  - contenteditable 判断放宽为 [contenteditable]:not([contenteditable="false"])
  */
 (function () {
-  if (window.__clineZhInstalled) return;
+  // 不再因 __clineZhInstalled 早退：每次注入都要重写全局派发函数并升级常驻设施。
   window.__clineZhInstalled = true;
-  window.__clineZhVersion = "1.1.6";
+  window.__clineZhVersion = "1.2.0";
 
   // 词库与规则都从 window 上「实时」读取：
   // 注入器重注入时只会就地合并/替换这两个全局量，引擎必须能感知到更新。
@@ -213,7 +222,8 @@
     }
   }
 
-  var stats = { runs: 0 };
+  // 跨注入累计（重注入不清零），挂在 window 上供 __clineZhInfo 与外部读取
+  var stats = window.__clineZhStats = window.__clineZhStats || { runs: 0 };
 
   function run() {
     try {
@@ -234,21 +244,71 @@
   function schedule() {
     if (scheduled) return;
     scheduled = true;
-    setTimeout(function () { scheduled = false; run(); }, 100);
+    setTimeout(function () { scheduled = false; window.__clineZhRun(); }, 100);
+  }
+
+  // 全局派发函数（叠加注入升级点，对齐 devin-zh B17）：
+  // 常驻 observer/timer/监听器的回调闭包固定、无法换芯，故每次注入都重写以下函数 ——
+  // 旧回调经 window 派发时自动用上当次代码与词库/规则。
+  // __clineZhScan 同时充当常驻设施的版本戳：函数对象本身即「这次注入」的唯一标识。
+  window.__clineZhRun = run;
+  window.__clineZhScan = function (root) {
+    if (!root || !root.nodeType) return;
+    if (root.nodeType === 1 || root.nodeType === 9) { doTexts(root); doAttrs(root); }
+    else if (root.nodeType === 3 && root.parentElement) { doTexts(root.parentElement); }
+  };
+
+  // 常驻设施注册：observer / 兜底 timer / 焦点与可见性监听器都存到 window 上并打版本戳。
+  // 戳不符（含旧版脚本根本无戳）说明常驻者仍是旧闭包 —— 就地
+  // disconnect / clearInterval / removeEventListener 后在同一同步任务内重建，
+  // 重建缝隙没有 DOM 变更可插入，净数量仍各为 1；冷启动无旧戳，直接走注册路径。
+  function install() {
+    var stamp = window.__clineZhScan;
+    try {
+      if (window.__CLINE_ZH_OBS__ && window.__CLINE_ZH_OBS_STAMP__ !== stamp) {
+        try { window.__CLINE_ZH_OBS__.disconnect(); } catch (e) { /* ignore */ }
+        window.__CLINE_ZH_OBS__ = null;
+      }
+      if (!window.__CLINE_ZH_OBS__) {
+        var obs = new MutationObserver(schedule);
+        obs.observe(document.documentElement, {
+          childList: true, subtree: true, characterData: true, attributes: true,
+          attributeFilter: ATTRS
+        });
+        window.__CLINE_ZH_OBS__ = obs;
+        window.__CLINE_ZH_OBS_STAMP__ = stamp;
+      }
+    } catch (e) { /* ignore */ }
+    // 兜底：React 整树重渲染时 MutationObserver 可能漏掉，低频补一遍
+    try {
+      if (window.__CLINE_ZH_TIMER__ && window.__CLINE_ZH_TIMER_STAMP__ !== stamp) {
+        try { clearInterval(window.__CLINE_ZH_TIMER__); } catch (e) { /* ignore */ }
+        window.__CLINE_ZH_TIMER__ = null;
+      }
+      if (!window.__CLINE_ZH_TIMER__) {
+        window.__CLINE_ZH_TIMER__ = setInterval(function () { window.__clineZhRun(); }, 5000);
+        window.__CLINE_ZH_TIMER_STAMP__ = stamp;
+      }
+    } catch (e) { /* ignore */ }
+    // 监听器按函数引用存取：旧版闭包的监听器先摘除再重挂，净数量仍 1
+    try {
+      if (window.__CLINE_ZH_LISTEN__ && window.__CLINE_ZH_LISTEN_STAMP__ !== stamp) {
+        try { window.removeEventListener('focus', window.__CLINE_ZH_LISTEN__, true); } catch (e) { /* ignore */ }
+        try { document.removeEventListener('visibilitychange', window.__CLINE_ZH_LISTEN__, true); } catch (e) { /* ignore */ }
+        window.__CLINE_ZH_LISTEN__ = null;
+      }
+      if (!window.__CLINE_ZH_LISTEN__) {
+        window.__CLINE_ZH_LISTEN__ = schedule;
+        window.__CLINE_ZH_LISTEN_STAMP__ = stamp;
+        try { window.addEventListener('focus', schedule, true); } catch (e) { /* ignore */ }
+        try { document.addEventListener('visibilitychange', schedule, true); } catch (e) { /* ignore */ }
+      }
+    } catch (e) { /* ignore */ }
   }
 
   function boot() {
     run();
-    try {
-      new MutationObserver(schedule).observe(document.documentElement, {
-        childList: true, subtree: true, characterData: true, attributes: true,
-        attributeFilter: ATTRS
-      });
-    } catch (e) { /* ignore */ }
-    // 兜底：React 整树重渲染时 MutationObserver 可能漏掉，低频补一遍
-    try { setInterval(run, 5000); } catch (e) { /* ignore */ }
-    try { window.addEventListener('focus', schedule, true); } catch (e) { /* ignore */ }
-    try { document.addEventListener('visibilitychange', schedule, true); } catch (e) { /* ignore */ }
+    install();
   }
 
   try {
@@ -261,8 +321,7 @@
     // 即使初始化异常也不能影响宿主页面
   }
 
-  // 供 injector 主动触发
-  window.__clineZhRun = run;
+  // 供 injector 读取状态
   window.__clineZhInfo = function () {
     var D = liveDict();
     return {

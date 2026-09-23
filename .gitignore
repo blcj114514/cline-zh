@@ -5,3 +5,7 @@ selftest-status.json
 selftest-report.json
 __pycache__/
 *.pyc
+
+# 备份文件不入库（派活纪律：.bak-<日期> 仅作还原点）
+*.bak-*
+*.bak
