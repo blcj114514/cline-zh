@@ -17,7 +17,7 @@ PATTERNS = {
     "长 Bearer 串": re.compile(r"Bearer\s+[A-Za-z0-9._-]{25,}"),
     "个人目录 (Windows)": re.compile(r"[A-Za-z]:\\+Users\\+[A-Za-z0-9_.\-]+"),
     # 任意盘符路径告警（\\+ 同时覆盖源码里双反斜杠的转义形态）；\Users\ 由上面专门规则报告
-    "盘符路径告警 (Windows)": re.compile(r"[A-Za-z]:\\+(?!Users)[A-Za-z0-9_.\- 一-鿿]+(?:\\+[A-Za-z0-9_.\- 一-鿿]+)*"),
+    "盘符路径告警 (Windows)": re.compile(r"(?<![A-Za-z0-9_])[A-Za-z]:\\+(?!Users)[A-Za-z0-9_.\- 一-鿿]{2,}(?:\\+[A-Za-z0-9_.\- 一-鿿]+)*"),
     "个人目录 (类 Unix)": re.compile(r"/(?:home|Users)/[A-Za-z0-9_.\-]+"),
     "私网/非回环 IP": re.compile(r"\b(?!127\.0\.0\.1|0\.0\.0\.0)(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.\d{1,3}){3}\b"),
     "设备/账号标识": re.compile(r"\b(?:cl|usr|org|dev)-[A-Za-z0-9]{12,}\b"),
