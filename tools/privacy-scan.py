@@ -22,9 +22,34 @@ PATTERNS = {
     "私网/非回环 IP": re.compile(r"\b(?!127\.0\.0\.1|0\.0\.0\.0)(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.\d{1,3}){3}\b"),
     "设备/账号标识": re.compile(r"\b(?:cl|usr|org|dev)-[A-Za-z0-9]{12,}\b"),
     "主机名样式": re.compile(r"\b(?:DESKTOP|LAPTOP|WIN)-[A-Z0-9]{6,}\b"),
-    "长数字串(可能是手机号/ID)": re.compile(r"(?<!\d)(?:1[3-9]\d{9}|[1-9]\d{9,14})(?!\d)"),
+    # 边界从 (?<!\d)/(?!\d) 收紧为 (?<![0-9A-Za-z])/(?![0-9A-Za-z])：
+    # sha256 等十六进制/字母数字串里的连续数字片段不再误报；独立的手机号/长 ID 照旧命中
+    "长数字串(可能是手机号/ID)": re.compile(r"(?<![0-9A-Za-z])(?:1[3-9]\d{9}|[1-9]\d{9,14})(?![0-9A-Za-z])"),
 }
 ALLOW = re.compile(r"@(?:users\.noreply\.github\.com|example\.(?:com|org)|github\.com)$|127\.0\.0\.1|0\.0\.0\.0")
+
+# ---- “盘符路径告警 (Windows)”专用白名单（只对该规则生效；“个人目录”等规则不受影响）----
+# 判定前先把命中串里的连续反斜杠折叠成单个 \，因此源码转义形态（如 E:\\Cline）一并覆盖。
+# 精确匹配：包内文档化/系统级字面量
+DRIVE_PATH_ALLOW_EXACT = {
+    # Launch-Cline-ZH.bat 启动器的文档化探测候选 / CHANGELOG 版本史说明
+    r"E:\Cline",
+    r"D:\Cline",
+    r"E:\Cline\cline-app.exe",
+    r"D:\Cline\cline-app.exe",
+    # README 安装说明里的 Node.js 默认安装路径（系统级，不含个人信息）
+    r"C:\Program Files\nodejs\node.exe",
+    # 兜底：Windows 目录本身（命中串在 \ 前被截断、只剩盘符+目录名时仍放行）
+    r"C:\Windows",
+}
+# 前缀匹配：通用系统目录（含 C:\Windows\System32\drivers\etc\hosts 等）
+DRIVE_PATH_ALLOW_PREFIX = (
+    "C:\\Windows\\",
+)
+
+def _drive_path_allowed(s):
+    n = re.sub(r"\\+", r"\\", s)
+    return n in DRIVE_PATH_ALLOW_EXACT or n.startswith(DRIVE_PATH_ALLOW_PREFIX)
 
 def texts_from_git(root):
     r = subprocess.run(["git", "-C", root, "rev-list", "--objects", "--all"],
@@ -63,6 +88,8 @@ for label, items in (("工作树", texts_from_tree(ROOT)), ("git 历史", texts_
             for m in rx.finditer(t):
                 s = m.group(0)
                 if ALLOW.search(s):
+                    continue
+                if k == "盘符路径告警 (Windows)" and _drive_path_allowed(s):
                     continue
                 hits.append((name, k, s[:70]))
     seen, uniq = set(), []
