@@ -1,9 +1,14 @@
 # 变更记录
 
-## v1.1.7 — 未发布
+## v1.1.7 — 2026-09-25
 
-- **适配 Cline 0.0.34 汉化增量**：新增 `cline-zh/dict-batch13.json`（**148 条**），
-  经 `merge_dict.py` 合并后词库 `dict.json` 1315 → **1463 条**；规则 **61 条**不变。
+- **适配 Cline 0.0.34 汉化增量**：新增 `cline-zh/dict-batch13.json`（**148 条**）。
+- **词库大批量入库**：新增 `cline-zh/dict-batch15.json`（**730 条**，取自 sidecar 历史上游文案缺口三分清单中的「可入库」集），
+  与 batch13 一并经 `merge_dict.py` 合并 → `dict.json` 1315 → **2245 条**。
+- **规则 +3 条 `--flag` 报错规则**：`--X requires a value` / `--X is required for Y` / `--X or --Y`
+  （**保留 flag 名原样、只翻其余部分**）→ `rules.json` 61 → **64 条**。
+- **`tools/privacy-scan.py` 加固**：数字串边界收紧（sha256 不再误报）＋显式精确白名单；
+  发版包扫描 `exit=0`，v1.1.5 包内真实路径泄漏仍能报出。
 - **跳区表核对**：0.0.34 前端 10 个内容容器选择器全部仍在，`SKIP_SELECTOR` 无需改动。
 - **README 口径修正**：「分段词条已退役」改为准确表述——默认靠合并匹配整句命中，
   半句键仅在合并匹配失败时兜底（真机实测发现个别 DOM 合并未命中，补
